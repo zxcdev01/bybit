@@ -1,81 +1,73 @@
-import asyncio
-import logging
 import os
-import json
+import logging
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram.constants import ParseMode
 import urllib.request
-from aiogram import Bot, Dispatcher, types, F
-from aiogram.filters import Command
-from aiogram.types import BotCommand, InlineKeyboardMarkup, InlineKeyboardButton
-from datetime import datetime
+import json
 
 # ============ КОНФІГУРАЦІЯ ============
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-ALLOWED_USERS = list(map(int, os.getenv("ALLOWED_USERS", "117445054,73455428").split(","))) if os.getenv("ALLOWED_USERS") else [123456789]
+ALLOWED_USERS = list(map(int, os.getenv("ALLOWED_USERS", "117445054").split(","))) if os.getenv("ALLOWED_USERS") else [123456789]
 
 if not TELEGRAM_TOKEN:
     raise ValueError("❌ TELEGRAM_TOKEN не встановлений!")
 
-# Налаштування логування
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Ініціалізація
-bot = Bot(token=TELEGRAM_TOKEN)
-dp = Dispatcher()
-
 # ============ ОБРОБНИКИ ============
 
-@dp.message(Command("start"))
-async def cmd_start(message: types.Message):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Команда /start"""
-    user_id = message.from_user.id
+    user_id = update.effective_user.id
     
     if user_id not in ALLOWED_USERS:
-        await message.answer("🚫 У вас немає доступу до цього бота")
+        await update.message.reply_text("🚫 У вас немає доступу до цього бота")
         return
     
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📊 Меню", callback_data="show_menu")],
-        [InlineKeyboardButton(text="👤 Профіль", callback_data="show_profile")],
-        [InlineKeyboardButton(text="⚡ Ліквідації", callback_data="show_liquidations")],
-    ])
+    keyboard = [
+        [InlineKeyboardButton("📊 Меню", callback_data="show_menu")],
+        [InlineKeyboardButton("👤 Профіль", callback_data="show_profile")],
+        [InlineKeyboardButton("⚡ Ліквідації", callback_data="show_liquidations")],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await message.answer(
-        f"👋 Привіт, <b>{message.from_user.first_name}</b>!\n\n"
+    await update.message.reply_text(
+        f"👋 Привіт, <b>{update.effective_user.first_name}</b>!\n\n"
         "🤖 Ласкаво просимо до Bybit Liquidation Alerts\n\n"
         "Виберіть дію:",
-        reply_markup=keyboard,
-        parse_mode="HTML"
+        reply_markup=reply_markup,
+        parse_mode=ParseMode.HTML
     )
 
-@dp.callback_query(F.data == "show_menu")
-async def show_menu(query: types.CallbackQuery):
+async def show_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Меню"""
+    query = update.callback_query
     await query.answer()
     
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔔 Ліквідації", callback_data="menu_liq")],
-        [InlineKeyboardButton(text="⚙️ Налаштування", callback_data="menu_settings")],
-        [InlineKeyboardButton(text="📈 Статистика", callback_data="menu_stats")],
-        [InlineKeyboardButton(text="👤 Профіль", callback_data="show_profile")],
-    ])
+    keyboard = [
+        [InlineKeyboardButton("🔔 Ліквідації", callback_data="menu_liq")],
+        [InlineKeyboardButton("⚙️ Налаштування", callback_data="menu_settings")],
+        [InlineKeyboardButton("📈 Статистика", callback_data="menu_stats")],
+        [InlineKeyboardButton("👤 Профіль", callback_data="show_profile")],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await query.message.edit_text(
-        "📋 <b>МЕНЮ</b>\n\n"
-        "Виберіть розділ:",
-        reply_markup=keyboard,
-        parse_mode="HTML"
+    await query.edit_message_text(
+        "📋 <b>МЕНЮ</b>\n\nВиберіть розділ:",
+        reply_markup=reply_markup,
+        parse_mode=ParseMode.HTML
     )
 
-@dp.callback_query(F.data == "show_profile")
-async def show_profile(query: types.CallbackQuery):
+async def show_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Профіль"""
+    query = update.callback_query
     await query.answer()
     
     user = query.from_user
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔙 Меню", callback_data="show_menu")],
-    ])
+    keyboard = [[InlineKeyboardButton("🔙 Меню", callback_data="show_menu")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
     
     profile_text = (
         f"👤 <b>МІЙ ПРОФІЛЬ</b>\n\n"
@@ -84,20 +76,20 @@ async def show_profile(query: types.CallbackQuery):
         f"<b>🔔 Сповіщення:</b> ✅ Включені\n"
     )
     
-    await query.message.edit_text(profile_text, reply_markup=keyboard, parse_mode="HTML")
+    await query.edit_message_text(profile_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
 
-@dp.callback_query(F.data == "show_liquidations")
-async def show_liquidations(query: types.CallbackQuery):
+async def show_liquidations(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Активні ліквідації"""
+    query = update.callback_query
     await query.answer()
     
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔄 Оновити", callback_data="refresh_liq")],
-        [InlineKeyboardButton(text="🔙 Меню", callback_data="show_menu")],
-    ])
+    keyboard = [
+        [InlineKeyboardButton("🔄 Оновити", callback_data="refresh_liq")],
+        [InlineKeyboardButton("🔙 Меню", callback_data="show_menu")],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
     
     try:
-        # Отримуємо дані з Bybit API
         url = "https://api.bybit.com/v5/market/liquidation?category=linear&limit=10"
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
         
@@ -113,65 +105,63 @@ async def show_liquidations(query: types.CallbackQuery):
                     price = float(liq.get("price", 0))
                     text += f"{i}. <b>{symbol}</b> ({side}) - ${price:,.2f}\n"
                 
-                await query.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+                await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
             else:
-                await query.message.edit_text(
-                    "⚡ <b>АКТИВНІ ЛІКВІДАЦІЇ</b>\n\n"
-                    "На даний момент ліквідацій не виявлено",
-                    reply_markup=keyboard,
-                    parse_mode="HTML"
+                await query.edit_message_text(
+                    "⚡ <b>АКТИВНІ ЛІКВІДАЦІЇ</b>\n\nНа даний момент ліквідацій не виявлено",
+                    reply_markup=reply_markup,
+                    parse_mode=ParseMode.HTML
                 )
     except Exception as e:
-        logger.error(f"Помилка отримання ліквідацій: {e}")
-        await query.message.edit_text(
+        logger.error(f"Помилка: {e}")
+        await query.edit_message_text(
             "⚠️ Помилка при отриманні даних",
-            reply_markup=keyboard,
-            parse_mode="HTML"
+            reply_markup=reply_markup,
+            parse_mode=ParseMode.HTML
         )
 
-@dp.callback_query(F.data == "menu_liq")
-async def menu_liq(query: types.CallbackQuery):
+async def menu_liq(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Меню ліквідацій"""
+    query = update.callback_query
     await query.answer()
     
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⚡ Активні", callback_data="show_liquidations")],
-        [InlineKeyboardButton(text="📊 Історія", callback_data="history")],
-        [InlineKeyboardButton(text="🔙 Назад", callback_data="show_menu")],
-    ])
+    keyboard = [
+        [InlineKeyboardButton("⚡ Активні", callback_data="show_liquidations")],
+        [InlineKeyboardButton("📊 Історія", callback_data="history")],
+        [InlineKeyboardButton("🔙 Назад", callback_data="show_menu")],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await query.message.edit_text(
-        "⚡ <b>ЛІКВІДАЦІЇ</b>\n\n"
-        "Виберіть дію:",
-        reply_markup=keyboard,
-        parse_mode="HTML"
+    await query.edit_message_text(
+        "⚡ <b>ЛІКВІДАЦІЇ</b>\n\nВиберіть дію:",
+        reply_markup=reply_markup,
+        parse_mode=ParseMode.HTML
     )
 
-@dp.callback_query(F.data == "menu_settings")
-async def menu_settings(query: types.CallbackQuery):
+async def menu_settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Налаштування"""
+    query = update.callback_query
     await query.answer()
     
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔔 Сповіщення: ВКЛ", callback_data="toggle_notif")],
-        [InlineKeyboardButton(text="🔙 Назад", callback_data="show_menu")],
-    ])
+    keyboard = [
+        [InlineKeyboardButton("🔔 Сповіщення: ВКЛ", callback_data="toggle_notif")],
+        [InlineKeyboardButton("🔙 Назад", callback_data="show_menu")],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await query.message.edit_text(
-        "⚙️ <b>НАЛАШТУВАННЯ</b>\n\n"
-        "Виберіть параметр:",
-        reply_markup=keyboard,
-        parse_mode="HTML"
+    await query.edit_message_text(
+        "⚙️ <b>НАЛАШТУВАННЯ</b>\n\nВиберіть параметр:",
+        reply_markup=reply_markup,
+        parse_mode=ParseMode.HTML
     )
 
-@dp.callback_query(F.data == "menu_stats")
-async def menu_stats(query: types.CallbackQuery):
+async def menu_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Статистика"""
+    query = update.callback_query
     await query.answer()
     
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔙 Назад", callback_data="show_menu")],
-    ])
+    keyboard = [[InlineKeyboardButton("🔙 Назад", callback_data="show_menu")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
     
     stats_text = (
         "📈 <b>СТАТИСТИКА</b>\n\n"
@@ -180,55 +170,50 @@ async def menu_stats(query: types.CallbackQuery):
         "🔥 Сьогодні: <b>34</b>\n"
     )
     
-    await query.message.edit_text(stats_text, reply_markup=keyboard, parse_mode="HTML")
+    await query.edit_message_text(stats_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
 
-@dp.callback_query(F.data == "refresh_liq")
-async def refresh_liq(query: types.CallbackQuery):
-    """Оновити ліквідації"""
-    await query.answer("🔄 Оновлення...")
-    await show_liquidations(query)
-
-@dp.callback_query(F.data == "toggle_notif")
-async def toggle_notif(query: types.CallbackQuery):
-    """Включити/вимкнути сповіщення"""
+async def toggle_notif(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Сповіщення"""
+    query = update.callback_query
     await query.answer("✓ Сповіщення оновлені", show_alert=False)
 
-@dp.callback_query(F.data == "history")
-async def history(query: types.CallbackQuery):
+async def history(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Історія"""
+    query = update.callback_query
     await query.answer()
     
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔙 Назад", callback_data="show_menu")],
-    ])
+    keyboard = [[InlineKeyboardButton("🔙 Назад", callback_data="show_menu")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await query.message.edit_text(
-        "📊 <b>ІСТОРІЯ ЛІКВІДАЦІЙ</b>\n\n"
-        "Функціонал в розробці...",
-        reply_markup=keyboard,
-        parse_mode="HTML"
+    await query.edit_message_text(
+        "📊 <b>ІСТОРІЯ ЛІКВІДАЦІЙ</b>\n\nФункціонал в розробці...",
+        reply_markup=reply_markup,
+        parse_mode=ParseMode.HTML
     )
 
-async def set_bot_commands():
-    """Встановлюємо команди бота"""
-    commands = [
-        BotCommand(command="start", description="Запустити бота"),
-        BotCommand(command="menu", description="Меню"),
-    ]
-    await bot.set_my_commands(commands)
-    logger.info("✓ Команди встановлені")
-
 async def main():
-    """Основна функція"""
+    """Запуск бота"""
     logger.info("🚀 Бот запускається...")
-    await set_bot_commands()
-    await bot.delete_webhook(drop_pending_updates=True)
     
-    logger.info("📡 Слухаємо оновлення...")
-    await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
+    app = Application.builder().token(TELEGRAM_TOKEN).build()
+    
+    # Обробники команд
+    app.add_handler(CommandHandler("start", start))
+    
+    # Обробники кнопок
+    app.add_handler(CallbackQueryHandler(show_menu, pattern="show_menu"))
+    app.add_handler(CallbackQueryHandler(show_profile, pattern="show_profile"))
+    app.add_handler(CallbackQueryHandler(show_liquidations, pattern="show_liquidations"))
+    app.add_handler(CallbackQueryHandler(menu_liq, pattern="menu_liq"))
+    app.add_handler(CallbackQueryHandler(menu_settings, pattern="menu_settings"))
+    app.add_handler(CallbackQueryHandler(menu_stats, pattern="menu_stats"))
+    app.add_handler(CallbackQueryHandler(toggle_notif, pattern="toggle_notif"))
+    app.add_handler(CallbackQueryHandler(history, pattern="history"))
+    app.add_handler(CallbackQueryHandler(show_menu, pattern="refresh_liq"))
+    
+    logger.info("📡 Бот готовий!")
+    await app.run_polling()
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        logger.info("⛔ Бот зупинений")
+    import asyncio
+    asyncio.run(main())
