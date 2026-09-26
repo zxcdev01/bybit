@@ -2,6 +2,7 @@ import os
 import logging
 import json
 import urllib.request
+import asyncio
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
@@ -269,8 +270,8 @@ async def toggle_notif(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ============ ЗАПУСК БОТА ============
 
-def main():
-    """Запуск бота"""
+async def main():
+    """Запуск бота - АСИНХРОННА ФУНКЦІЯ"""
     logger.info("🚀 Бот запускається...")
     
     app = Application.builder().token(TELEGRAM_TOKEN).build()
@@ -293,10 +294,11 @@ def main():
     logger.info(f"👥 Дозволені користувачі: {ALLOWED_USERS}")
     logger.info("📡 Бот запущений і очікує команд...")
     
-    app.run_polling()
+    # Запусти polling
+    await app.run_polling()
 
 if __name__ == "__main__":
     try:
-        main()
+        asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("⛔ Бот зупинений")
