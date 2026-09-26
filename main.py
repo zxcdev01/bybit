@@ -338,70 +338,7 @@ async def toggle_notifications(update: Update, context: ContextTypes.DEFAULT_TYP
     query = update.callback_query
     await query.answer("✓ Сповіщення включені", show_alert=False)
 
-# ============ ФОНОВИЙ МОНІТОРИНГ ============
 
-async def monitor_liquidations(app: Application):
-    """Фоновий task що моніторить ліквідації"""
-    global last_liquidation, liquidation_cache
-    
-    logger.info("🚀 Запуск моніторингу ліквідацій...")
-    
-    while True:
-        try:
-            liquidations = get_liquidations()
-            
-            if liquidations:
-                # Отримай найновішу ліквідацію
-                latest = liquidations[0]
-                
-                # Перевір чи це нова ліквідація
-                if last_liquidation != latest.get("symbol"):
-                    # Це нова ліквідація!
-                    message_text, symbol = format_liquidation(latest)
-                    last_liquidation = symbol
-                    
-                    # Кешуй
-                    liquidation_cache.append(latest)
-                    if len(liquidation_cache) > 100:
-                        liquidation_cache.pop(0)
-                    
-                    # Надішли ВСІМ авторизованим користувачам
-                    logger.info(f"🚨 Нова ліквідація: {symbol}")
-                    
-                    keyboard = [
-                        [InlineKeyboardButton("📊 Переглянути деталі", callback_data="menu_liquidations")],
-                        [InlineKeyboardButton("⚡ Всі ліквідації", callback_data="show_active_liq")]
-                    ]
-                    reply_markup = InlineKeyboardMarkup(keyboard)
-                    
-                    for user_id in list(active_users.keys()):
-                        try:
-                            await app.bot.send_message(
-                                chat_id=user_id,
-                                text=message_text,
-                                reply_markup=reply_markup,
-                                parse_mode=ParseMode.HTML
-                            )
-                            logger.info(f"✅ Повідомлення надіслано користувачу {user_id}")
-                        except Exception as e:
-                            logger.error(f"❌ Помилка надсилання користувачу {user_id}: {e}")
-            
-            # Перевіряй кожні 5 секунд
-            await asyncio.sleep(5)
-            
-        except Exception as e:
-            logger.error(f"❌ Помилка в моніторингу: {e}")
-            await asyncio.sleep(10)
-
-# ============ POST-INIT CALLBACK ============
-
-async def post_init(application: Application) -> None:
-    """Запускається після ініціалізації бота"""
-    logger.info("✅ Бот готовий!")
-    logger.info(f"👥 Дозволені користувачі: {ALLOWED_USERS}")
-    logger.info("🚀 Запуск моніторингу ліквідацій...")
-    # Запусти фоновий монітор
-    asyncio.create_task(monitor_liquidations(application))
 
 # ============ ЗАПУСК БОТА ============
 
@@ -410,9 +347,6 @@ async def main():
     logger.info("🚀 Бот запускається...")
     
     app = Application.builder().token(TELEGRAM_TOKEN).build()
-    
-    # Встанови post_init callback
-    app.post_init = post_init
     
     # Команди
     app.add_handler(CommandHandler("start", start))
@@ -438,6 +372,10 @@ async def main():
         BotCommand("help", "Допомога"),
     ]
     await app.bot.set_my_commands(commands)
+    
+    logger.info("✅ Бот готовий!")
+    logger.info(f"👥 Дозволені користувачі: {ALLOWED_USERS}")
+    logger.info("📡 Очікування команд...")
     
     await app.run_polling()
 
