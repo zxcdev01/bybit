@@ -1,10 +1,11 @@
 import asyncio
 import logging
 import os
+import json
+import urllib.request
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.types import BotCommand, InlineKeyboardMarkup, InlineKeyboardButton
-import aiohttp
 from datetime import datetime
 
 # ============ КОНФІГУРАЦІЯ ============
@@ -96,34 +97,30 @@ async def show_liquidations(query: types.CallbackQuery):
     ])
     
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                "https://api.bybit.com/v5/market/liquidation",
-                params={"category": "linear", "limit": 10},
-                timeout=aiohttp.ClientTimeout(total=5)
-            ) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    liquidations = data.get("result", {}).get("rows", [])
-                    
-                    if liquidations:
-                        text = "⚡ <b>АКТИВНІ ЛІКВІДАЦІЇ</b>\n\n"
-                        for i, liq in enumerate(liquidations[:5], 1):
-                            symbol = liq.get("symbol", "UNKNOWN")
-                            side = liq.get("side", "N/A")
-                            price = float(liq.get("price", 0))
-                            text += f"{i}. <b>{symbol}</b> ({side}) - ${price:,.2f}\n"
-                        
-                        await query.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
-                    else:
-                        await query.message.edit_text(
-                            "⚡ <b>АКТИВНІ ЛІКВІДАЦІЇ</b>\n\n"
-                            "На даний момент ліквідацій не виявлено",
-                            reply_markup=keyboard,
-                            parse_mode="HTML"
-                        )
-                else:
-                    raise Exception("API помилка")
+        # Отримуємо дані з Bybit API
+        url = "https://api.bybit.com/v5/market/liquidation?category=linear&limit=10"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        
+        with urllib.request.urlopen(req, timeout=5) as response:
+            data = json.loads(response.read().decode())
+            liquidations = data.get("result", {}).get("rows", [])
+            
+            if liquidations:
+                text = "⚡ <b>АКТИВНІ ЛІКВІДАЦІЇ</b>\n\n"
+                for i, liq in enumerate(liquidations[:5], 1):
+                    symbol = liq.get("symbol", "UNKNOWN")
+                    side = liq.get("side", "N/A")
+                    price = float(liq.get("price", 0))
+                    text += f"{i}. <b>{symbol}</b> ({side}) - ${price:,.2f}\n"
+                
+                await query.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+            else:
+                await query.message.edit_text(
+                    "⚡ <b>АКТИВНІ ЛІКВІДАЦІЇ</b>\n\n"
+                    "На даний момент ліквідацій не виявлено",
+                    reply_markup=keyboard,
+                    parse_mode="HTML"
+                )
     except Exception as e:
         logger.error(f"Помилка отримання ліквідацій: {e}")
         await query.message.edit_text(
