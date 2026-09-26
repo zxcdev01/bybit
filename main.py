@@ -29,13 +29,22 @@ def get_liquidations():
     """Отримай ліквідації з Bybit API"""
     try:
         url = "https://api.bybit.com/v5/market/liquidation?category=linear&limit=50"
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'application/json',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Referer': 'https://www.bybit.com/'
+        }
+        req = urllib.request.Request(url, headers=headers)
         
         with urllib.request.urlopen(req, timeout=5) as response:
             data = json.loads(response.read().decode())
             return data.get("result", {}).get("rows", [])
+    except urllib.error.HTTPError as e:
+        logger.warning(f"⚠️ API помилка {e.code}: {e.reason}. Будемо намагатися пізніше...")
+        return []
     except Exception as e:
-        logger.error(f"❌ Помилка отримання ліквідацій: {e}")
+        logger.warning(f"⚠️ Помилка отримання ліквідацій: {e}")
         return []
 
 def format_liquidation(liq):
@@ -384,6 +393,16 @@ async def monitor_liquidations(app: Application):
             logger.error(f"❌ Помилка в моніторингу: {e}")
             await asyncio.sleep(10)
 
+# ============ POST-INIT CALLBACK ============
+
+async def post_init(application: Application) -> None:
+    """Запускається після ініціалізації бота"""
+    logger.info("✅ Бот готовий!")
+    logger.info(f"👥 Дозволені користувачі: {ALLOWED_USERS}")
+    logger.info("🚀 Запуск моніторингу ліквідацій...")
+    # Запусти фоновий монітор
+    asyncio.create_task(monitor_liquidations(application))
+
 # ============ ЗАПУСК БОТА ============
 
 async def main():
@@ -391,6 +410,9 @@ async def main():
     logger.info("🚀 Бот запускається...")
     
     app = Application.builder().token(TELEGRAM_TOKEN).build()
+    
+    # Встанови post_init callback
+    app.post_init = post_init
     
     # Команди
     app.add_handler(CommandHandler("start", start))
@@ -417,13 +439,7 @@ async def main():
     ]
     await app.bot.set_my_commands(commands)
     
-    logger.info("✅ Бот готовий!")
-    logger.info(f"👥 Дозволені користувачі: {ALLOWED_USERS}")
-    
-    # Запусти фоновий task (без job_queue)
-    asyncio.create_task(monitor_liquidations(app))
-    
-    await app.run_polling(allowed_updates=app.bot.get_updates())
+    await app.run_polling()
 
 if __name__ == "__main__":
     try:
