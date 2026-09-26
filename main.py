@@ -365,7 +365,7 @@ async def monitor_liquidations(app: Application):
                     ]
                     reply_markup = InlineKeyboardMarkup(keyboard)
                     
-                    for user_id in active_users.keys():
+                    for user_id in list(active_users.keys()):
                         try:
                             await app.bot.send_message(
                                 chat_id=user_id,
@@ -410,13 +410,6 @@ async def main():
     app.add_handler(CallbackQueryHandler(edit_name, pattern="edit_name"))
     app.add_handler(CallbackQueryHandler(toggle_notifications, pattern="toggle_notifications"))
     
-    # Запусти фоновий task
-    app.job_queue.run_repeating(
-        lambda context: monitor_liquidations(app),
-        interval=1,
-        first=0
-    )
-    
     # Встанови команди
     commands = [
         BotCommand("start", "Запустити бота"),
@@ -426,6 +419,9 @@ async def main():
     
     logger.info("✅ Бот готовий!")
     logger.info(f"👥 Дозволені користувачі: {ALLOWED_USERS}")
+    
+    # Запусти фоновий task (без job_queue)
+    asyncio.create_task(monitor_liquidations(app))
     
     await app.run_polling(allowed_updates=app.bot.get_updates())
 
