@@ -8,7 +8,7 @@ import aiohttp
 from datetime import datetime
 
 # ============ КОНФІГУРАЦІЯ ============
-TELEGRAM_TOKEN = os.getenv("8933805982:AAElXvMKeIFwzXZaWXsaUbFZCI9zo7wqXoE")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 ALLOWED_USERS = list(map(int, os.getenv("ALLOWED_USERS", "117445054,73455428").split(","))) if os.getenv("ALLOWED_USERS") else [123456789]
 
 if not TELEGRAM_TOKEN:
