@@ -2,7 +2,9 @@ import os
 import logging
 import json
 import urllib.request
+import threading
 from datetime import datetime
+from flask import Flask
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 from telegram.constants import ParseMode
@@ -32,6 +34,25 @@ def get_liquidations():
     except Exception as e:
         logger.warning(f"⚠️ API помилка: {e}")
         return []
+
+# ============ FLASK (щоб бот не засинав на Render) ============
+
+flask_app = Flask(__name__)
+
+@flask_app.route("/")
+def home():
+    """Головна сторінка - для перевірки що сервіс живий"""
+    return "🤖 Bybit Liquidation Bot is running!", 200
+
+@flask_app.route("/health")
+def health():
+    """Health-check ендпоінт для UptimeRobot"""
+    return {"status": "ok", "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}, 200
+
+def run_flask():
+    """Запускає Flask у фоновому потоці"""
+    port = int(os.getenv("PORT", 10000))
+    flask_app.run(host="0.0.0.0", port=port)
 
 # ============ ОБРОБНИКИ ============
 
@@ -196,6 +217,11 @@ async def toggle_notif(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 if __name__ == "__main__":
     logger.info("🚀 Бот запускається...")
+    
+    # Запусти Flask у фоновому потоці, щоб Render бачив відкритий порт
+    flask_thread = threading.Thread(target=run_flask, daemon=True)
+    flask_thread.start()
+    logger.info(f"🌐 Flask сервер запущений на порту {os.getenv('PORT', 10000)}")
     
     app = Application.builder().token(TELEGRAM_TOKEN).build()
     
